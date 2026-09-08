@@ -1,0 +1,16 @@
+
+replicaCount: 1
+
+image:
+  repository: ramasubramanian06/go-web-app
+  pullPolicy: IfNotPresent
+  tag: "v1"
+
+ingress:
+  enabled: false
+  className: ""
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
