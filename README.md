@@ -70,7 +70,7 @@ Visit `http://localhost:8080`
 
 ## 📸 Pipeline in Action
 
-| CI Build | Docker Image Pushed | ArgoCD Sync | EKS Cluster |
+| CI Build | Docker Image Pushed | ArgoCD Sync |*
 |---|---|---|---|
 | ![CI](static/images/CI%20stage.jpg) | ![Docker](static/images/Docker%20image.jpg) | ![ArgoCD](static/images/Argocd.jpg) |
 
