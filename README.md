@@ -29,6 +29,7 @@ This is a **GitOps** pattern: Git is the single source of truth for what's runni
 
 ## 🛠️ Tech Stack
 
+| Layer | Tool |
 |---|---|
 | **Application** | Go (`net/http`, no external web framework) |
 | **CI** | GitHub Actions (build, test, lint) |
@@ -71,7 +72,7 @@ Visit `http://localhost:8080`
 
 | CI Build | Docker Image Pushed | ArgoCD Sync | EKS Cluster |
 |---|---|---|---|
-| ![CI](static/images/CI%20stage.jpg) | ![Docker](static/images/Docker%20image.jpg) | ![ArgoCD](static/images/Argocd.jpg) | ![EKS](static/images/ec2%20and%20eks%20cluster.jpg) |
+| ![CI](static/images/CI%20stage.jpg) | ![Docker](static/images/Docker%20image.jpg) | ![ArgoCD](static/images/Argocd.jpg) |
 
 ---
 
