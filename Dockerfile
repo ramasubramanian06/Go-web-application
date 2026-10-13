@@ -7,7 +7,7 @@ COPY . .
 RUN go build -o main .
 
 #final stage - distroless image
-FROM gcr.io/distroless/base-debian12
+FROM gcr.io/distroless/base-debian12:nonroot
 COPY --from=build /app/main .
 COPY --from=build /app/static ./static
 EXPOSE 8080
