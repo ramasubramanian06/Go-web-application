@@ -1,8 +1,12 @@
-# 🚀 Go Web App — End-to-End CI/CD & GitOps on AWS EKS
+# 🚀 Go Web App: CI/CD, GitOps & Cluster Diagnostics on AWS EKS using K8sGPT-AI
 
 A lightweight Golang web application, wrapped in a complete production-style DevOps pipeline: **GitHub Actions → Docker Hub → Helm → ArgoCD → AWS EKS**.
 
 The app itself is intentionally simple — a `net/http` server serving three static pages. The point of this project isn't the app; it's proving I can take application from a `git push` to a running pod on a Kubernetes cluster, automatically, safely, and repeatably.
+
+I also deployed the K8sGPT operator on the cluster to scan for failing workloads and surface the failing resource and its error message.
+
+Homepage
 
 ![Homepage](static/images/homepage.jpg)
 
@@ -25,6 +29,10 @@ Developer → GitHub → GitHub Actions CI/CD → Docker Hub → ArgoCD (GitOps)
 
 This is a **GitOps** pattern: Git is the single source of truth for what's running in the cluster.
 
+Cluster diagnostics (runs alongside, not part of the deploy flow):
+
+K8sGPT Operator → scans Pods / Deployments / Services → creates `Result` objects
+
 ---
 
 ## 🛠️ Tech Stack
@@ -39,7 +47,8 @@ This is a **GitOps** pattern: Git is the single source of truth for what's runni
 | **GitOps CD** | ArgoCD |
 | **Orchestration** | Kubernetes (AWS EKS) |
 | **Networking** | Kubernetes Ingress (NGINX) |
-
+| **Troubleshooting** | K8sGPT Operator (in-cluster analyzers) |
+	
 ---
 
 
@@ -53,6 +62,8 @@ This is a **GitOps** pattern: Git is the single source of truth for what's runni
 ├── static/                     # HTML pages (home, about, contact)
 ├── kubernetes/                 # Plain K8s manifests (Deployment, Service, Ingress)
 ├── helm/go-web-app-chart/      # Helm chart used for actual GitOps deployment
+├── k8sgpt/
+│   └── k8sgpt.yaml             # K8sGPT custom resource
 └── .github/workflows/ci.yaml   # Build → Test → Lint → Push → Update Helm tag
 ```
 
@@ -65,6 +76,68 @@ go build -o main
 ./main
 ```
 Visit `http://localhost:8080`
+
+---
+
+☸️ Kubernetes Deployment with Helm
+
+Helm manages the Kubernetes resources required to deploy the Go application.
+
+The chart is located at:
+
+helm/go-web-app-chart/
+├── Chart.yaml
+├── values.yaml
+└── templates/
+    ├── deployment.yaml
+    ├── service.yaml
+    └── ingress.yaml
+
+Why Helm?
+
+Instead of maintaining every Kubernetes manifest separately for each deployment, Helm uses templates and configurable values.
+
+For example, the image tag is configured in values.yaml:
+
+image:
+  repository: ramasubramanian06/go-web-app
+  tag: "YOUR_IMAGE_TAG"
+
+The Deployment template references this value:
+
+image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+
+When the CI pipeline updates the image tag in Git, Argo CD detects the change and synchronizes the Helm chart with the EKS cluster.
+
+This approach improves consistency, reusability, and deployment management.
+
+---
+
+🔍 Cluster Diagnostics with K8sGPT
+
+I deployed the K8sGPT Operator on the EKS cluster to try automated first-pass diagnosis. It scans the cluster and creates a Result resource for each issue it finds.
+
+Configuration: k8sgpt/k8sgpt.yaml scans Pods, Deployments and Services every 5 minutes. The OpenAI backend is configured but disabled (ai.enabled: false), so I used only the built-in analyzers and no cluster data left the cluster.
+
+Setup
+bash
+helm repo add k8sgpt https://charts.k8sgpt.ai && helm repo update
+helm install k8sgpt-operator k8sgpt/k8sgpt-operator -n k8sgpt --create-namespace
+kubectl apply -f k8sgpt/k8sgpt.yaml
+
+Test scenario
+
+I deployed a pod with a non-existent image and inspected the results:
+
+bash
+kubectl run k8sgpt-test-bad-image --image=nginx:doesnotexist
+kubectl get results -A
+kubectl describe result <result-name> -n k8sgpt
+
+What I found
+K8sGPT detected the test pod and created a Result for it.
+The reported error was a scheduling failure, not the image problem: 0/3 nodes are available: 3 Too many pods. The pod was Pending, so it never reached the image pull.
+Cause: the nodes had hit their pod-capacity limit (on EKS this depends on instance type).
 
 ---
 
