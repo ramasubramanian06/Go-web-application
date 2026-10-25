@@ -143,11 +143,52 @@ kubectl get results -A
 kubectl describe result <result-name> -n k8sgpt
 ```
 
+Observed error:
+
+```
+0/3 nodes are available:
+3 Too many pods.
+No new claims to deallocate.
+```
 ### What I found
 
 - K8sGPT detected the test pod and created a `Result` for it.
 - The reported error was a scheduling failure, not the image problem: `0/3 nodes are available: 3 Too many pods`. The pod was `Pending`, so it never reached the image pull.
 - Cause: the nodes had hit their pod-capacity limit (on EKS this depends on instance type).
+
+### How I resolved it
+
+**1. Confirmed the cause** before changing anything:
+
+```bash
+kubectl describe pod k8sgpt-test-bad-image      # Events: FailedScheduling - Too many pods
+kubectl describe nodes | grep -E "^Name:|pods:"  # pod capacity vs. allocated, per node
+kubectl get pods -A | wc -l                      # total pods running across the cluster
+```
+
+All 3 nodes were at their pod limit, because system pods, the K8sGPT operator and my other workloads had used up the available slots.
+
+**2. Added capacity with a new managed node group** (a larger instance type, since EKS pod limits scale with the instance's network interfaces):
+
+```bash
+eksctl create nodegroup \
+  --cluster <cluster-name> \
+  --name ng-extra \
+  --node-type t3.large \
+  --nodes 1 --nodes-min 1 --nodes-max 2 \
+  --managed
+```
+
+**3. Verified the fix:**
+
+```bash
+kubectl get nodes                                # new node shows Ready
+kubectl get pod k8sgpt-test-bad-image -w         # Pending → ErrImagePull / ImagePullBackOff
+kubectl get results -A                           # K8sGPT now reports the real image error
+```
+
+Once the new node joined, the pod was scheduled and failed with the expected image pull error. K8sGPT then reported that error instead of the scheduling failure.
+
 
 ---
 
