@@ -79,12 +79,13 @@ Visit `http://localhost:8080`
 
 ---
 
-☸️ Kubernetes Deployment with Helm
+## ☸️ Kubernetes Deployment with Helm
 
 Helm manages the Kubernetes resources required to deploy the Go application.
 
 The chart is located at:
 
+```text
 helm/go-web-app-chart/
 ├── Chart.yaml
 ├── values.yaml
@@ -92,20 +93,25 @@ helm/go-web-app-chart/
     ├── deployment.yaml
     ├── service.yaml
     └── ingress.yaml
+```
 
-Why Helm?
+### Why Helm?
 
 Instead of maintaining every Kubernetes manifest separately for each deployment, Helm uses templates and configurable values.
 
-For example, the image tag is configured in values.yaml:
+For example, the image tag is configured in `values.yaml`:
 
+```yaml
 image:
   repository: ramasubramanian06/go-web-app
   tag: "YOUR_IMAGE_TAG"
+```
 
 The Deployment template references this value:
 
+```yaml
 image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+```
 
 When the CI pipeline updates the image tag in Git, Argo CD detects the change and synchronizes the Helm chart with the EKS cluster.
 
@@ -113,31 +119,35 @@ This approach improves consistency, reusability, and deployment management.
 
 ---
 
-🔍 Cluster Diagnostics with K8sGPT
+## 🔍 Cluster Diagnostics with K8sGPT
 
-I deployed the K8sGPT Operator on the EKS cluster to try automated first-pass diagnosis. It scans the cluster and creates a Result resource for each issue it finds.
+I deployed the [K8sGPT Operator](https://github.com/k8sgpt-ai/k8sgpt-operator) on the EKS cluster to try automated first-pass diagnosis. It scans the cluster and creates a `Result` resource for each issue it finds.
 
-Configuration: k8sgpt/k8sgpt.yaml scans Pods, Deployments and Services every 5 minutes. The OpenAI backend is configured but disabled (ai.enabled: false), so I used only the built-in analyzers and no cluster data left the cluster.
+**Configuration:** [`k8sgpt/k8sgpt.yaml`](k8sgpt/k8sgpt.yaml) scans Pods, Deployments and Services every 5 minutes. The OpenAI backend is configured but **disabled** (`ai.enabled: false`), so I used only the built-in analyzers and no cluster data left the cluster.
 
-Setup
-bash
+### Setup
+
+```bash
 helm repo add k8sgpt https://charts.k8sgpt.ai && helm repo update
 helm install k8sgpt-operator k8sgpt/k8sgpt-operator -n k8sgpt --create-namespace
 kubectl apply -f k8sgpt/k8sgpt.yaml
+```
 
-Test scenario
+### Test scenario
 
 I deployed a pod with a non-existent image and inspected the results:
 
-bash
+```bash
 kubectl run k8sgpt-test-bad-image --image=nginx:doesnotexist
 kubectl get results -A
 kubectl describe result <result-name> -n k8sgpt
+```
 
-What I found
-K8sGPT detected the test pod and created a Result for it.
-The reported error was a scheduling failure, not the image problem: 0/3 nodes are available: 3 Too many pods. The pod was Pending, so it never reached the image pull.
-Cause: the nodes had hit their pod-capacity limit (on EKS this depends on instance type).
+### What I found
+
+- K8sGPT detected the test pod and created a `Result` for it.
+- The reported error was a scheduling failure, not the image problem: `0/3 nodes are available: 3 Too many pods`. The pod was `Pending`, so it never reached the image pull.
+- Cause: the nodes had hit their pod-capacity limit (on EKS this depends on instance type).
 
 ---
 
